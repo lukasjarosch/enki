@@ -46,8 +46,8 @@ func NewZapLogger(logLevel string) (*zap.Logger, error) {
 		},
 		Encoding:         "json",
 		EncoderConfig:    zapEncoderConfig,
-		OutputPaths:      []string{"stderr"},
-		ErrorOutputPaths: []string{"stderr"},
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stdout"},
 	}
 
 	return zapConfig.Build()
