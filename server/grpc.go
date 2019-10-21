@@ -8,9 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+
+	"github.com/lukasjarosch/enki/interceptor"
 )
 
 // HttpConfig defines all configuration fields for the gRPC server
@@ -21,11 +26,11 @@ type GrpcConfig struct {
 
 // GrpcServer defines the default behaviour of gRPC servers
 type GrpcServer struct {
-	GoogleGrpc *grpc.Server
-	logger     *zap.Logger
-	config     *GrpcConfig
-	listener   net.Listener
-	healthy    bool
+	GoogleGrpc      *grpc.Server
+	logger          *zap.Logger
+	config          *GrpcConfig
+	listener        net.Listener
+	healthy         bool
 	requestDuration prometheus.Histogram
 }
 
@@ -51,7 +56,10 @@ func NewGrpcServer(logger *zap.Logger, config *GrpcConfig) *GrpcServer {
 func (srv *GrpcServer) setupGrpc() {
 	var err error
 
-	srv.GoogleGrpc = grpc.NewServer()
+	srv.GoogleGrpc = grpc.NewServer(grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc_recovery.UnaryServerInterceptor(),
+		interceptor.RequestId(),
+	)))
 	srv.listener, err = net.Listen("tcp", fmt.Sprintf(":%v", srv.config.Port))
 	if err != nil {
 		srv.logger.Fatal("failed to listen on port", zap.Error(err))
@@ -101,7 +109,7 @@ func (srv *GrpcServer) Health() http.HandlerFunc {
 	}
 }
 
-func (srv *GrpcServer) registerMetrics()  {
+func (srv *GrpcServer) registerMetrics() {
 	srv.requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "grpc_request_duration_ms",
 		Help:    "Request duration in milliseconds",

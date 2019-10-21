@@ -1,8 +1,12 @@
 package logging
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/lukasjarosch/enki/metadata"
 )
 
 // NewZapLogger will setup a zap-logger with the given level.
@@ -33,7 +37,7 @@ func NewZapLogger(logLevel string) (*zap.Logger, error) {
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.LowercaseLevelEncoder,
 		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
@@ -51,4 +55,10 @@ func NewZapLogger(logLevel string) (*zap.Logger, error) {
 	}
 
 	return zapConfig.Build()
+}
+
+func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger{
+	requestID := metadata.GetRequestID(ctx)
+
+	return logger.With(zap.String("requestId", requestID))
 }
