@@ -3,6 +3,8 @@ package logging
 import (
 	"context"
 
+	"github.com/opentracing/opentracing-go"
+	zipkintracer "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -57,8 +59,15 @@ func NewZapLogger(logLevel string) (*zap.Logger, error) {
 	return zapConfig.Build()
 }
 
-func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger{
-	requestID := metadata.GetRequestID(ctx)
+func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
+	span, ok := opentracing.SpanFromContext(ctx).Context().(zipkintracer.SpanContext)
+	if ok {
+		logger = logger.With(zap.String(metadata.TraceID, span.TraceID.String()))
+	}
 
-	return logger.With(zap.String("requestId", requestID))
+	return logger.With(
+		zap.String(metadata.RequestID, metadata.GetRequestID(ctx)),
+		zap.String(metadata.UserID, metadata.GetUserID(ctx)),
+		zap.String(metadata.AccountID, metadata.GetAccountID(ctx)),
+	)
 }

@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpcopentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -38,6 +40,7 @@ type GrpcServer struct {
 // The application will terminate if the server cannot bind to the configured port.
 // If the application does not terminate, the port is open and a raw gRPC server has been created after
 // the call of NewGrpcServer()
+// 'tracer' may be nil, in this case the feature is disabled
 func NewGrpcServer(logger *zap.Logger, config *GrpcConfig) *GrpcServer {
 	srv := &GrpcServer{
 		logger: logger.Named("grpc"),
@@ -45,7 +48,6 @@ func NewGrpcServer(logger *zap.Logger, config *GrpcConfig) *GrpcServer {
 	}
 
 	srv.setupGrpc()
-	srv.registerMetrics()
 
 	return srv
 }
@@ -56,10 +58,16 @@ func NewGrpcServer(logger *zap.Logger, config *GrpcConfig) *GrpcServer {
 func (srv *GrpcServer) setupGrpc() {
 	var err error
 
-	srv.GoogleGrpc = grpc.NewServer(grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-		grpc_recovery.UnaryServerInterceptor(),
-		interceptor.RequestId(),
-	)))
+	grpcprometheus.EnableHandlingTimeHistogram()
+
+	srv.GoogleGrpc = grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			grpcrecovery.UnaryServerInterceptor(),
+			interceptor.RequestId(),
+			grpcopentracing.UnaryServerInterceptor(),
+			grpcprometheus.UnaryServerInterceptor,
+		)),
+	)
 	srv.listener, err = net.Listen("tcp", fmt.Sprintf(":%v", srv.config.Port))
 	if err != nil {
 		srv.logger.Fatal("failed to listen on port", zap.Error(err))
@@ -107,15 +115,6 @@ func (srv *GrpcServer) Health() http.HandlerFunc {
 			_, _ = w.Write([]byte("UNHEALTHY"))
 		}
 	}
-}
-
-func (srv *GrpcServer) registerMetrics() {
-	srv.requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "grpc_request_duration_ms",
-		Help:    "Request duration in milliseconds",
-		Buckets: []float64{50, 100, 250, 500, 1000},
-	})
-	prometheus.MustRegister(srv.requestDuration)
 }
 
 // shutdownGrpc gracefully shuts down the gRPC server

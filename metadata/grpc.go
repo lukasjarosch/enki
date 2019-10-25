@@ -11,6 +11,7 @@ const (
 	RequestID string = "requestId"
 	AccountID string = "accountId"
 	UserID    string = "userId"
+	TraceID    string = "zipkinTraceId"
 )
 
 // GetMetadata is a convenience function which can be used in order to not have to import two metadata

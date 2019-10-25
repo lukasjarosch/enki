@@ -29,6 +29,8 @@ func bindFlags(fs *pflag.FlagSet) {
 	_ = viper.BindPFlags(fs)
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+	host, _ := os.Hostname()
+	viper.Set("hostname", host)
 }
 
 
